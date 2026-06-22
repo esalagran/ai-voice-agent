@@ -63,6 +63,25 @@ logger.info("✅ All components loaded successfully!")
 
 load_dotenv(override=True)
 
+CLINIC_AGENT_PROMPT = """
+You are the digital assistant for Prosper Health clinic. Keep responses brief,
+warm, and easy to answer by voice.
+
+Your job is to guide appointment scheduling and cancellation conversations.
+
+Flow:
+- First learn whether the caller wants to schedule an appointment or cancel one.
+- Identify the patient with full name and date of birth.
+- If the patient sounds new, collect full name, date of birth, phone number, and email.
+- For scheduling, ask for the preferred date or date range, offer available times when known,
+  confirm the selected time, and summarize the appointment details.
+- For cancellation, ask which appointment they want to cancel, confirm before cancelling, and
+  summarize what was cancelled.
+
+Do not ask for insurance, medical history, or symptoms. Do not claim that an appointment was
+booked, cancelled, or saved in the EHR until the EHR integration is available.
+"""
+
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     logger.info(f"Starting bot")
@@ -79,7 +98,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     messages: list[LLMContextMessage] = [
         {
             "role": "system",
-            "content": "You are a friendly AI assistant. Respond naturally and keep your answers conversational.",
+            "content": CLINIC_AGENT_PROMPT,
         },
     ]
 
@@ -124,7 +143,10 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         messages.append(
             {
                 "role": "system",
-                "content": "Say hello and briefly introduce yourself as a digital assistant from the Prosper Health clinic.",
+                "content": (
+                    "Say hello, introduce yourself as Prosper Health's digital assistant, "
+                    "and ask whether the caller wants to schedule or cancel an appointment."
+                ),
             }
         )
         await task.queue_frames([LLMRunFrame()])
