@@ -80,4 +80,9 @@ commands on pull requests and pushes to `main`.
 
 - No authentication yet; this is local challenge infrastructure.
 - No Alembic migrations yet; `create_all` is enough for the first task schema.
-- No appointment search endpoint yet; cancellation currently uses the appointment ID.
+- The voice agent calls the EHR over HTTP with `EHR_BASE_URL` instead of importing the service
+  directly. This keeps the bot integration close to a real external EHR boundary.
+- Bot-specific EHR code lives under `agent/`: prompt text, the async EHR HTTP client, and Pipecat
+  tool registration. `bot.py` stays as the pipeline composition root.
+- Cancellation uses `list_patient_appointments` so callers can cancel by choosing an appointment
+  time instead of knowing an appointment ID.

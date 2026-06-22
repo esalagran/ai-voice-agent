@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import date
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from ehr_service.database import SessionFactory, database_url, init_db, make_session_factory
 from ehr_service.domain import EHRConflictError, EHRNotFoundError, EHRValidationError
-from ehr_service.schemas import (
+from ehr_service.rpc import (
     AppointmentResponse,
     CancelAppointmentRequest,
     CreateAppointmentRequest,
     CreatePatientRequest,
+    FindPatientRequest,
+    ListAvailabilitySlotsRequest,
+    ListPatientAppointmentsRequest,
     PatientResponse,
     SlotResponse,
 )
@@ -72,24 +74,25 @@ def create_app(db_url: str | None = None) -> FastAPI:
             email=request.email,
         )
 
-    @app.get("/rpc/find_patient", response_model=PatientResponse | None)
+    @app.post("/rpc/find_patient", response_model=PatientResponse | None)
     def find_patient(
-        date_of_birth: date,
-        name: str = Query(min_length=1),
+        request: FindPatientRequest,
         session: Session = Depends(get_session),
     ):
-        return EHRService(session).find_patient(name=name, date_of_birth=date_of_birth)
+        return EHRService(session).find_patient(
+            name=request.name,
+            date_of_birth=request.date_of_birth,
+        )
 
-    @app.get("/rpc/list_availability_slots", response_model=list[SlotResponse])
+    @app.post("/rpc/list_availability_slots", response_model=list[SlotResponse])
     def list_availability_slots(
-        from_date: date,
-        to_date: date | None = None,
+        request: ListAvailabilitySlotsRequest,
         session: Session = Depends(get_session),
     ):
         try:
             return EHRService(session).list_availability_slots(
-                from_date=from_date,
-                to_date=to_date,
+                from_date=request.from_date,
+                to_date=request.to_date,
             )
         except EHRValidationError as error:
             raise map_domain_error(error) from error
@@ -107,7 +110,20 @@ def create_app(db_url: str | None = None) -> FastAPI:
         except (EHRNotFoundError, EHRConflictError) as error:
             raise map_domain_error(error) from error
 
-    @app.put("/rpc/cancel_appointment", response_model=AppointmentResponse)
+    @app.post("/rpc/list_patient_appointments", response_model=list[AppointmentResponse])
+    def list_patient_appointments(
+        request: ListPatientAppointmentsRequest,
+        session: Session = Depends(get_session),
+    ):
+        try:
+            return EHRService(session).list_patient_appointments(
+                patient_id=request.patient_id,
+                status=request.status,
+            )
+        except EHRNotFoundError as error:
+            raise map_domain_error(error) from error
+
+    @app.post("/rpc/cancel_appointment", response_model=AppointmentResponse)
     def cancel_appointment(
         request: CancelAppointmentRequest,
         session: Session = Depends(get_session),
