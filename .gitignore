@@ -33,6 +33,10 @@ ENV/
 htmlcov/
 .mypy_cache/
 
+# Local EHR data
+ehr.db
+ehr.db-*
+
 # Misc
 *.log
 .cache/
