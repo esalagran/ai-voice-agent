@@ -65,3 +65,32 @@ Run:
 uv run pytest
 uv run ruff check .
 ```
+
+## Future Improvements
+
+I would run the agent inside a workflow environment such as Temporal. Appointment
+scheduling is a stateful, multi-step process, so a workflow engine would make it
+easier to retry failed steps, resume interrupted calls, track side effects, and
+audit what happened.
+
+For latency and reliability, I would put LiteLLM in front of the model providers
+as an AI gateway. That would allow model routing, request timeouts, fallback
+models, and rate limit handling without changing the agent code. Faster models
+could handle simple routing and extraction, while stronger models could be used
+only when the conversation needs more reasoning.
+
+I would also keep the voice path strict about latency budgets. The agent should
+stream responses, avoid unnecessary tool calls, use short prompts, and fail
+clearly when the EHR or model layer is unavailable. For production, the EHR
+client should have explicit timeouts, retries for safe reads, health checks, and
+clear degraded behavior.
+
+For evaluation, I would build a small set of scripted scheduling and
+cancellation scenarios. Each scenario would define the user turns, expected tool
+calls, and expected final outcome. These could run locally or on demand in CI/CD
+against a seeded EHR database.
+
+To catch hallucinations, the tests should assert that the agent only claims an
+appointment was booked or cancelled after the matching tool call succeeds. A
+simulated caller can cover common paths, edge cases, and provider failures
+without requiring a person to dial in by hand every time.
