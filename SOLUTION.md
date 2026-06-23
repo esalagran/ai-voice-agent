@@ -43,6 +43,20 @@ data survives process restarts.
 Cancellation uses `list_patient_appointments` first, so callers can choose an
 appointment by time instead of knowing an internal appointment ID.
 
+## Running The Agent
+
+Run the full local flow with:
+
+```bash
+scripts/run-agent-e2e.sh
+```
+
+The script seeds the EHR, starts the EHR API, and starts the voice agent with
+`EHR_BASE_URL` set.
+
+The seeded availability uses `slot_day = date(2030, 1, 15)`, so January 15,
+2030 is the known day with available slots.
+
 ## Validation
 
 Run:
