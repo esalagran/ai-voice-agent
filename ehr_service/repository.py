@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ehr_service.domain import SLOT_AVAILABLE
 from ehr_service.models import Appointment, AvailabilitySlot, Patient
@@ -49,6 +49,20 @@ class EHRRepository:
     def add_appointment(self, appointment: Appointment) -> Appointment:
         self.session.add(appointment)
         return appointment
+
+    def list_patient_appointments(
+        self, patient_id: int, status: str | None
+    ) -> list[Appointment]:
+        query = (
+            select(Appointment)
+            .join(Appointment.slot)
+            .options(selectinload(Appointment.patient), selectinload(Appointment.slot))
+            .where(Appointment.patient_id == patient_id)
+            .order_by(AvailabilitySlot.start_at)
+        )
+        if status:
+            query = query.where(Appointment.status == status)
+        return list(self.session.scalars(query))
 
     def get_appointment_for_update(self, appointment_id: int) -> Appointment | None:
         return self.session.scalar(

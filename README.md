@@ -52,10 +52,19 @@ To get started, fork this repository so that you can start commiting and pushing
 ### Running the Bot
 
 ```bash
-uv run bot.py
+scripts/run-agent-e2e.sh
 ```
 
 **Open http://localhost:7860 in your browser** and click `Connect` to start talking to your bot.
+
+This seeds and starts the local EHR API, then starts the voice agent with `EHR_BASE_URL`
+pointing at that API. To run the pieces separately:
+
+```bash
+uv run python ehr.py --seed
+uv run python ehr.py
+EHR_BASE_URL=http://127.0.0.1:7861 uv run bot.py
+```
 
 > 💡 First run note: The initial startup may take ~20 seconds as Pipecat downloads required models and imports.
 

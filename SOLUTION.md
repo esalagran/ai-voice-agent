@@ -1,83 +1,67 @@
 # Prosper Challenge Solution
 
-## Task 1: EHR HTTP API
+## Overview
 
-This solution adds a small EHR HTTP service for the first deliverable:
+The solution keeps the voice agent and EHR service separate. The agent talks to
+the EHR over HTTP using `EHR_BASE_URL`, which keeps the integration close to a
+real external system boundary.
 
-- create a patient
-- find a patient by name and date of birth
-- list available appointment slots
-- create an appointment
-- cancel an appointment
+## Shared RPC Contract
 
-The service is separate from the voice bot and runs as its own FastAPI app from `ehr.py`.
+`ehr_service/rpc.py` defines the request and response models for every EHR
+operation. The FastAPI service uses those models for endpoint validation, and
+the agent client uses the same models when making tool calls.
 
-## API
+This avoids duplicating patient, slot, and appointment shapes across the API and
+agent code. When an RPC shape changes, there is one contract to update.
 
-The endpoints keep the challenge operation names:
+The EHR exposes JSON RPC-style POST endpoints:
 
+- `POST /rpc/find_patient`
 - `POST /rpc/create_patient`
-- `GET /rpc/find_patient`
-- `GET /rpc/list_availability_slots`
+- `POST /rpc/list_availability_slots`
 - `POST /rpc/create_appointment`
-- `PUT /rpc/cancel_appointment`
+- `POST /rpc/list_patient_appointments`
+- `POST /rpc/cancel_appointment`
 
-FastAPI provides the OpenAPI docs at:
+## Agent Modularization
 
-```text
-http://127.0.0.1:7861/docs
-```
+Bot-specific EHR code lives under `agent/`:
 
-## Persistence
+- `agent/prompts.py` contains the clinic prompt and startup prompt.
+- `agent/ehr_client.py` wraps async HTTP calls and maps EHR failures into tool errors.
+- `agent/ehr_tools.py` registers the shared RPC operations as Pipecat tools.
 
-The EHR uses SQLAlchemy with SQLite by default:
+`bot.py` stays focused on pipeline composition: transport, model services,
+context, aggregators, and lifecycle cleanup.
 
-```text
-sqlite:///./ehr.db
-```
+## Persistence And Cancellation
 
-The database URL can be changed with:
+The EHR uses SQLAlchemy with SQLite by default, so local patient and appointment
+data survives process restarts.
 
-```bash
-EHR_DATABASE_URL=sqlite:///./ehr.db
-```
+Cancellation uses `list_patient_appointments` first, so callers can choose an
+appointment by time instead of knowing an internal appointment ID.
 
-SQLite is enough for this first task because it is file-backed, simple to run locally, and survives process restarts. A production version would move this to Postgres and add migrations.
+## Running The Agent
 
-## Running
-
-Seed deterministic demo data:
+Run the full local flow with:
 
 ```bash
-uv run python ehr.py --seed
+scripts/run-agent-e2e.sh
 ```
 
-Start the EHR service:
+The script seeds the EHR, starts the EHR API, and starts the voice agent with
+`EHR_BASE_URL` set.
+
+The seeded availability uses `slot_day = date(2030, 1, 15)`, so January 15,
+2030 is the known day with available slots.
+
+## Validation
+
+Run:
 
 ```bash
-uv run python ehr.py
-```
-
-It starts on `127.0.0.1:7861` by default.
-
-## Tests And CI
-
-The EHR tests live under `ehr_service/tests/`. They cover the HTTP flow, persistence, domain date
-validation, name normalization, and patient deduplication.
-
-Run locally:
-
-```bash
+uv run pytest
 uv run ruff check .
-uv run pyright
-uv run python -m pytest
 ```
-
-The GitHub Actions workflow in `.github/workflows/ci.yml` runs the same lint, typecheck, and test
-commands on pull requests and pushes to `main`.
-
-## Tradeoffs
-
-- No authentication yet; this is local challenge infrastructure.
-- No Alembic migrations yet; `create_all` is enough for the first task schema.
-- No appointment search endpoint yet; cancellation currently uses the appointment ID.

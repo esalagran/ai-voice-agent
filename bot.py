@@ -59,28 +59,13 @@ from pipecat.turns.user_stop.turn_analyzer_user_turn_stop_strategy import (
 )
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 
+from agent.ehr_client import EHRClient
+from agent.ehr_tools import EHRToolset
+from agent.prompts import CLINIC_AGENT_PROMPT, STARTUP_PROMPT
+
 logger.info("✅ All components loaded successfully!")
 
 load_dotenv(override=True)
-
-CLINIC_AGENT_PROMPT = """
-You are the digital assistant for Prosper Health clinic. Keep responses brief,
-warm, and easy to answer by voice.
-
-Your job is to guide appointment scheduling and cancellation conversations.
-
-Flow:
-- First learn whether the caller wants to schedule an appointment or cancel one.
-- Identify the patient with full name and date of birth.
-- If the patient sounds new, collect full name, date of birth, phone number, and email.
-- For scheduling, ask for the preferred date or date range, offer available times when known,
-  confirm the selected time, and summarize the appointment details.
-- For cancellation, ask which appointment they want to cancel, confirm before cancelling, and
-  summarize what was cancelled.
-
-Do not ask for insurance, medical history, or symptoms. Do not claim that an appointment was
-booked, cancelled, or saved in the EHR until the EHR integration is available.
-"""
 
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
@@ -94,6 +79,17 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     )
 
     llm = OpenAILLMService(api_key=os.environ["OPENAI_API_KEY"])
+    ehr_client = EHRClient(
+        base_url=os.environ.get("EHR_BASE_URL", "http://127.0.0.1:7861"),
+        timeout=float(os.environ.get("EHR_TIMEOUT_SECONDS", "5")),
+    )
+    try:
+        await ehr_client.check_health()
+    except Exception:
+        await ehr_client.aclose()
+        raise
+    ehr_tools = EHRToolset(ehr_client)
+    ehr_tools.register(llm)
 
     messages: list[LLMContextMessage] = [
         {
@@ -102,7 +98,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         },
     ]
 
-    context = LLMContext(messages)
+    context = LLMContext(messages, tools=ehr_tools.tools)
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
@@ -143,10 +139,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         messages.append(
             {
                 "role": "system",
-                "content": (
-                    "Say hello, introduce yourself as Prosper Health's digital assistant, "
-                    "and ask whether the caller wants to schedule or cancel an appointment."
-                ),
+                "content": STARTUP_PROMPT,
             }
         )
         await task.queue_frames([LLMRunFrame()])
@@ -158,7 +151,10 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
 
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
 
-    await runner.run(task)
+    try:
+        await runner.run(task)
+    finally:
+        await ehr_client.aclose()
 
 
 async def bot(runner_args: RunnerArguments):

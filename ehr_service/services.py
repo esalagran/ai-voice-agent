@@ -80,6 +80,13 @@ class EHRService:
         self.repository.commit()
         return appointment
 
+    def list_patient_appointments(
+        self, patient_id: int, status: str | None = APPOINTMENT_BOOKED
+    ) -> list[Appointment]:
+        if self.repository.get_patient(patient_id) is None:
+            raise EHRNotFoundError("patient not found")
+        return self.repository.list_patient_appointments(patient_id, status)
+
     def cancel_appointment(self, appointment_id: int) -> Appointment:
         appointment = self.repository.get_appointment_for_update(appointment_id)
         if appointment is None:
