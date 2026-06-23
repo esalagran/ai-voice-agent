@@ -1,4 +1,4 @@
-# Prosper Challenge
+# Ai Voice Challenge
 
 This is a template repository for an AI voice agent that schedules appointments for a health clinic. In a real deployment the agent would talk to the clinic's CRM, which in healthcare is known as an Electronic Health Record (EHR). For this challenge we'd like you to build a small EHR yourself and wire the voice agent to it.
 
